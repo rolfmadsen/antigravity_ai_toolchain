@@ -62,7 +62,7 @@ graphify install --project
 
 Instead of running a background server for skills, install Matt Pocock's collection directly into your project. This allows you to version-control your workflow standard alongside your code.
 
-## Install the skills bundle into your project
+Install the skills bundle into your project
 ```bash
 npx skills add mattpocock/skills
 ```
