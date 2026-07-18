@@ -63,7 +63,7 @@ If you ran the global script above, your `~/.gemini/config/mcp_config.json` is a
         "--mcp"
       ]
     },
-    "agent-skills": {
+    "toolchain-guardrail": {
       "command": "uv",
       "args": [
         "run",
