@@ -19,7 +19,7 @@ To achieve strict engineering discipline and project-level isolation, this toolc
 
 We use a single bash script to install the base CLI tools and configure your IDE to talk to the MCP servers. 
 
-Run this on your machine to install `uv`, `npm`, `graphify`, and configure Antigravity:
+Run this on your machine to install `uv`, `npm`, `graphifyy` (which provides the `graphify` CLI command), and configure Antigravity:
 
 ```bash
 chmod +x setup-pocock-toolchain.sh
@@ -50,32 +50,89 @@ If you ran the global script above, your `~/.gemini/config/mcp_config.json` is a
 {
   "mcpServers": {
     "graphify": {
-      "command": "graphify",
-      "args": ["mcp"]
+      "command": "uv",
+      "args": [
+        "run",
+        "--with",
+        "graphifyy[mcp]",
+        "python",
+        "-m",
+        "graphify.serve",
+        "graphify-out/graph.json"
+      ]
     },
     "agentmemory": {
       "command": "npx",
       "args": [
-        "-y",
-        "@agentmemory/agentmemory",
-        "--storage",
-        "./.memory",
-        "--mcp"
-      ]
+        "--no-install",
+        "@agentmemory/mcp"
+      ],
+      "env": {
+        "AGENTMEMORY_URL": "http://localhost:3111"
+      }
     },
     "toolchain-guardrail": {
       "command": "uv",
       "args": [
         "run",
-        "$HOME/Github/antigravity_ai_toolchain/mcp_server.py"
+        "/home/rolfmadsen/Github/antigravity_ai_toolchain/mcp_server.py"
       ]
     }
   }
 }
-
 ```
 
-## 🔄 5. The Opinionated Workflow
+## 🧠 5. Running the Agentmemory Server
+
+The `@agentmemory/mcp` client configuration inside Antigravity communicates with a central memory server running on `http://localhost:3111`. You must ensure this server is running in the background for your agent to store and recall memories.
+
+### Option A: Running in a Separate Terminal
+You can simply start the server manually in any terminal window:
+
+```bash
+agentmemory
+```
+
+This will run the server in the foreground. Keep this terminal open during your development sessions.
+
+### Option B: Running as a systemd User Service (Recommended for Linux/Pop!_OS)
+To run the server silently in the background and have it start automatically on system boot:
+
+1. Create a user-level systemd service file:
+   ```bash
+   mkdir -p ~/.config/systemd/user/
+   nano ~/.config/systemd/user/agentmemory.service
+   ```
+
+2. Paste the following configuration:
+   ```ini
+   [Unit]
+   Description=AgentMemory Server
+   After=network.target
+
+   [Service]
+   ExecStart=/usr/bin/env agentmemory
+   Restart=always
+
+   [Install]
+   WantedBy=default.target
+   ```
+
+3. Reload systemd and start/enable the service:
+   ```bash
+   systemctl --user daemon-reload
+   systemctl --user enable --now agentmemory
+   ```
+
+4. You can check the service status, logs, or stop it using standard systemctl commands:
+   ```bash
+   systemctl --user status agentmemory
+   systemctl --user stop agentmemory
+   ```
+
+The web-based memory viewer dashboard will always be available at [http://localhost:3113](http://localhost:3113).
+
+## 🔄 6. The Opinionated Workflow
 
 Once configured, your AI agent operates on a strict State Machine enforced by `mcp_server.py`. The agent *cannot* skip steps.
 
