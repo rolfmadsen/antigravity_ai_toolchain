@@ -68,8 +68,9 @@ npx skills add mattpocock/skills
 ```
 
 Once installed, use the setup command in your agent or terminal to configure your issue tracker and docs structure:
-
-> /setup-matt-pocock-skills
+```md
+/setup-matt-pocock-skills
+```
 
 ## ⚙️ 4. Antigravity IDE Integration (MCP Config)
 
