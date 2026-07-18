@@ -54,7 +54,7 @@ cat <<EOF > ~/.gemini/config/mcp_config.json
 "--mcp"
 ]
 },
-"agent-skills": {
+"toolchain-guardrail": {
 "command": "uv",
 "args": [
 "run",
