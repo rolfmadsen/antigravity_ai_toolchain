@@ -8,11 +8,11 @@ This setup is optimized for TS/Node/React environments and focuses on project-le
 
 To achieve project-level isolation, this toolchain uses two different integration methods based on the tool's function:
 
-** 1. Dynamic Data (MCP Servers): Tools that require active compute, databases, or real-time searching run via the Model Context Protocol (MCP).**
+**1. Dynamic Data (MCP Servers): Tools that require active compute, databases, or real-time searching run via the Model Context Protocol (MCP)**
 - Graphify: Runs an MCP server to map your TS/Node codebase into a queryable graph.
 - Agentmemory: Runs an MCP server to manage a local vector database (./.memory), allowing memory to travel with the Git branch.
 
-** 2. Static Workflows (Local Files):**
+**2. Static Workflows (Local Files):**
 - Matt Pocock's Skills: Installed locally via CLI into the repository. These are static prompt rules and instructions that enforce engineering workflows (like TDD). They don't need a server; the agent just reads them from the directory.
 
 ## 🛠️ 2. Global Installation
