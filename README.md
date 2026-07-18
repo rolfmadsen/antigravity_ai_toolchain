@@ -1,91 +1,59 @@
+```markdown
 # 🚀 Antigravity AI Toolchain Setup Guide
 
-A complete standard operating procedure for integrating Graphify (codebase AST mapping), Agentmemory (persistent, versionable AI context), and Matt Pocock's Skills (TDD/workflow prompts) into the Google Antigravity IDE.
+A highly-opinionated standard operating procedure for integrating **Graphify** (codebase AST mapping), **Agentmemory** (persistent AI context), and **Matt Pocock's Skills** into the Google Antigravity IDE.
 
-This setup is optimized for TS/Node/React environments and focuses on project-level scoping, ensuring your AI's memory and strict skill workflows travel seamlessly with your Git branch.
+This setup is optimized for TS/Node/React environments. It introduces a **Custom Guardrail MCP** that acts as an AI Tech Lead, refusing to let the AI write code until a rigorous ZeeSpec/Grilling session and ticket breakdown are completed.
 
 ## 🏗️ 1. Architecture Overview
 
-To achieve project-level isolation, this toolchain uses two different integration methods based on the tool's function:
+To achieve strict engineering discipline and project-level isolation, this toolchain relies entirely on the **Model Context Protocol (MCP)**:
 
-**1. Dynamic Data (MCP Servers): Tools that require active compute, databases, or real-time searching run via the Model Context Protocol (MCP)**
-- Graphify: Runs an MCP server to map your TS/Node codebase into a queryable graph.
-- Agentmemory: Runs an MCP server to manage a local vector database (./.memory), allowing memory to travel with the Git branch.
+**1. Context & Memory Servers**
+- **Graphify:** Maps your codebase into a queryable graph.
+- **Agentmemory:** Manages a local vector database (`./.memory`), allowing AI memory to travel with your Git branch.
 
-**2. Static Workflows (Local Files):**
-- Matt Pocock's Skills: Installed locally via CLI into the repository. These are static prompt rules and instructions that enforce engineering workflows (like TDD). They don't need a server; the agent just reads them from the directory.
+**2. The Guardrail Server (Opinionated Workflow)**
+- **Agent-Skills (`mcp_server.py`):** A custom Python server that wraps Matt Pocock's static Markdown skills. It evaluates your workspace state and throws hard `STOP` commands if the AI attempts to code without first establishing a Ubiquitous Language (`CONTEXT.md`), a Technical Spec (`spec.md`), and Tracer-Bullet Tickets (`task.md`).
 
 ## 🛠️ 2. Global Installation
 
-Install the base CLI tools required to run the servers.
+We use a single bash script to install the base CLI tools and configure your IDE to talk to the MCP servers. 
 
-**Step 2.1 Install Agentmemory globally via npm**
-```bash
-npm install -g @agentmemory/agentmemory
-```
+Run this on your machine to install `uv`, `npm`, `graphify`, and configure Antigravity:
 
-**Step 2.1 Install Graphify via uv (recommended for Python environment isolation)**
 ```bash
-uv tool install graphifyy
+chmod +x setup-pocock-toolchain.sh
+./setup-pocock-toolchain.sh global
+
 ```
 
 ## 📁 3. Workspace Initialization (Per Project)
 
-When starting a new project or cloning an existing one, set up the workspace for Graphify, Git-tracked memory, and your engineering skills.
-
-**Step 3.1: Configure Ignore Rules**
-
-Create a .graphifyignore file in your root to prevent indexing massive dependency folders:
-
-#### TS/Node/React
-node_modules/
-dist/
-build/
-.next/
-coverage/
-
-#### Rust / Python (occasional)
-target/
-venv/
-__pycache__/
-
-
-**Step 3.2: Initialize Graphify**
-
-Run this in the root of your workspace to create local graph mappings specific to this project:
+When starting a new project or cloning an existing one, run the workspace setup command.
 
 ```bash
-graphify install --project
+cd ~/your/new/project
+~/Github/antigravity_ai_toolchain/setup-pocock-toolchain.sh workspace
+
 ```
 
-**Step 3.3: Install Matt Pocock's Skills**
+**What this does automatically:**
 
-Instead of running a background server for skills, install Matt Pocock's collection directly into your project. This allows you to version-control your workflow standard alongside your code.
-
-Install the skills bundle into your project
-```bash
-npx skills add mattpocock/skills
-```
-
-Once installed, use the setup command in your agent or terminal to configure your issue tracker and docs structure:
-```md
-/setup-matt-pocock-skills
-```
+1. Installs Matt Pocock's official skills into the project.
+2. Creates a `.graphifyignore` file (ignoring `node_modules`, `dist`, etc.).
+3. Readies the directory for the strict Guardrail workflow.
 
 ## ⚙️ 4. Antigravity IDE Integration (MCP Config)
 
-Configure Antigravity to automatically boot Graphify and your local Git-tracked Agentmemory databases whenever you open the IDE.
-
-Open ~/.gemini/config/mcp_config.json and replace its contents with the following:
+If you ran the global script above, your `~/.gemini/config/mcp_config.json` is already configured. For reference, it automatically boots all three servers:
 
 ```json
 {
   "mcpServers": {
     "graphify": {
       "command": "graphify",
-      "args": [
-        "mcp"
-      ]
+      "args": ["mcp"]
     },
     "agentmemory": {
       "command": "npx",
@@ -96,24 +64,41 @@ Open ~/.gemini/config/mcp_config.json and replace its contents with the followin
         "./.memory",
         "--mcp"
       ]
+    },
+    "agent-skills": {
+      "command": "uv",
+      "args": [
+        "run",
+        "$HOME/Github/antigravity_ai_toolchain/mcp_server.py"
+      ]
     }
   }
 }
+
 ```
 
-Note: Matt Pocock's skills are not included in this JSON because they are read directly from your local project files (.claude/skills), not from a background server.
+## 🔄 5. The Opinionated Workflow
 
-## 🔄 5. Recommended Workflow
+Once configured, your AI agent operates on a strict State Machine enforced by `mcp_server.py`. The agent *cannot* skip steps.
 
-Coding: Open your project in Antigravity. Use Matt Pocock's slash commands (like /tdd or /improve-codebase-architecture) to guide the agent.
+1. **Phase 1: Discovery (The Grilling)**
+* *Trigger:* No `spec.md` exists.
+* *Action:* The AI is forced to use `/grill-with-docs` (using the 5W1H ZeeSpec model) to establish a shared dictionary in `CONTEXT.md` before it writes the technical `spec.md`.
 
-Context & Memory: The agent will automatically use the Graphify MCP server for architectural context and the Agentmemory MCP server (reading/writing to ./.memory) to remember past decisions.
 
-Version Control: When you commit your code, include the .memory folder and your local skills directory.
+2. **Phase 2: Vertical Slices**
+* *Trigger:* `spec.md` exists, but no `task.md` exists.
+* *Action:* The AI breaks the spec down into end-to-end "tracer bullet" tickets.
 
-```bash
-git add src/ .memory/ .claude/
-git commit -m "feat: implement auth with agent skills and memory"
+
+3. **Phase 3: Execution (TDD)**
+* *Trigger:* Both `spec.md` and `task.md` exist.
+* *Action:* The AI executes the next ticket using `/tdd` (Red-Green-Refactor) and finishes with `/code-review`.
+
+
+
+✨ **The Benefit:** When you commit your code, include `.memory/` and `CONTEXT.md`. If you check out an older branch or a colleague pulls your code, the AI agent's memory and domain knowledge roll back or update perfectly to match that specific branch!
+
 ```
 
-✨ The Benefit: If you check out an older branch or a colleague pulls your code, the AI agent's memory and strict skill workflows roll back or update perfectly to match the state of that specific branch!
+```
