@@ -1,4 +1,3 @@
-```markdown
 # 🚀 Antigravity AI Toolchain Setup Guide
 
 A highly-opinionated standard operating procedure for integrating **Graphify** (codebase AST mapping), **Agentmemory** (persistent AI context), and **Matt Pocock's Skills** into the Google Antigravity IDE.
@@ -25,7 +24,6 @@ Run this on your machine to install `uv`, `npm`, `graphify`, and configure Antig
 ```bash
 chmod +x setup-pocock-toolchain.sh
 ./setup-pocock-toolchain.sh global
-
 ```
 
 ## 📁 3. Workspace Initialization (Per Project)
@@ -98,7 +96,5 @@ Once configured, your AI agent operates on a strict State Machine enforced by `m
 
 
 ✨ **The Benefit:** When you commit your code, include `.memory/` and `CONTEXT.md`. If you check out an older branch or a colleague pulls your code, the AI agent's memory and domain knowledge roll back or update perfectly to match that specific branch!
-
-```
 
 ```
