@@ -19,12 +19,12 @@ Static Workflows (Local Files):
 
 Install the base CLI tools required to run the servers.
 
-### Install Agentmemory globally via npm
+**Step 2.1 Install Agentmemory globally via npm**
 ```bash
 npm install -g @agentmemory/agentmemory
 ```
 
-### Install Graphify via uv (recommended for Python environment isolation)
+**Step 2.1 Install Graphify via uv (recommended for Python environment isolation)**
 ```bash
 uv tool install graphifyy
 ```
