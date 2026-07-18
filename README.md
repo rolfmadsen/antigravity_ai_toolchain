@@ -46,6 +46,9 @@ cd ~/your/new/project
 
 If you ran the global script above, your `~/.gemini/config/mcp_config.json` is already configured. For reference, it automatically boots all three servers:
 
+> [!WARNING]
+> If you are setting this up manually, you **must** replace `<PATH_TO_CLONE_DIR>` with the actual absolute path where you cloned this repository.
+
 ```json
 {
   "mcpServers": {
@@ -75,7 +78,7 @@ If you ran the global script above, your `~/.gemini/config/mcp_config.json` is a
       "command": "uv",
       "args": [
         "run",
-        "/home/rolfmadsen/Github/antigravity_ai_toolchain/mcp_server.py"
+        "<PATH_TO_CLONE_DIR>/mcp_server.py"
       ]
     }
   }

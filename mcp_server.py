@@ -34,10 +34,18 @@ mcp = FastMCP(
     ),
 )
 
+def find_workspace_root(start_path: Path) -> Path:
+    """Traverse upwards to find the nearest workspace root containing .git, .agents, or .graphifyignore."""
+    current = start_path.resolve()
+    for parent in [current] + list(current.parents):
+        if (parent / ".git").exists() or (parent / ".agents").exists() or (parent / ".graphifyignore").exists():
+            return parent
+    return current
+
 def get_skills_dir() -> Path:
     """Find the agents directory in the current workspace."""
-    # Matt's skills installer usually creates an .agents folder
-    return Path.cwd() / ".agents"
+    root = find_workspace_root(Path.cwd())
+    return root / ".agents"
 
 def parse_skill_md(file_path: Path):
     """Parse YAML frontmatter and Markdown content."""
@@ -123,6 +131,42 @@ def get_skill(skill_id: str) -> str:
         
     return f"Error: Skill '{skill_id}' not found."
 
+def is_graph_stale(root: Path) -> tuple[bool, str]:
+    """Check if the Graphify index is missing or older than any source files."""
+    graph_file = root / "graphify-out" / "graph.json"
+    if not graph_file.exists():
+        return True, "No Graphify index found. Run 'graphify . --code-only' to initialize the graph."
+    
+    graph_mtime = graph_file.stat().st_mtime
+    
+    # Exclude directories and extensions
+    exclude_dirs = {".git", "node_modules", "dist", ".venv", ".memory", ".agents", "graphify-out"}
+    exclude_extensions = {
+        ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".map", ".json",
+        ".md", ".txt", ".yaml", ".yml", ".toml", ".lock"
+    }
+    
+    newest_file = None
+    newest_mtime = 0.0
+    
+    for p in root.rglob("*"):
+        if any(part in exclude_dirs for part in p.parts):
+            continue
+        if p.is_file() and p.suffix not in exclude_extensions:
+            try:
+                mtime = p.stat().st_mtime
+                if mtime > newest_mtime:
+                    newest_mtime = mtime
+                    newest_file = p
+            except Exception:
+                pass
+                
+    if newest_mtime > graph_mtime:
+        rel_path = newest_file.relative_to(root) if newest_file else "some files"
+        return True, f"Graphify index is stale. '{rel_path}' was modified after the graph. Run 'graphify update .' to update the graph."
+        
+    return False, ""
+
 @mcp.tool()
 def validate_state(cwd: str = ".") -> str:
     """
@@ -130,40 +174,98 @@ def validate_state(cwd: str = ".") -> str:
     Fallback to current working directory if generic path provided.
     """
     # Robust absolute path handling
-    root = Path(cwd).resolve() if cwd and cwd != "." else Path.cwd().resolve()
+    start = Path(cwd).resolve() if cwd and cwd != "." else Path.cwd().resolve()
+    root = find_workspace_root(start)
     bootstrap_workspace(root)
     
-    # Case-insensitive check of existing files in project root
-    files = [f.name.lower() for f in root.iterdir() if f.is_file()]
+    spec_file = root / "spec.md"
+    task_file = root / "task.md"
     
+    spec_found = spec_file.exists()
+    spec_valid = False
+    if spec_found:
+        spec_content = spec_file.read_text(encoding="utf-8").strip()
+        spec_valid = len(spec_content) > 50 and not spec_content.startswith("# Placeholder")
+        
+    task_found = task_file.exists()
+    task_valid = False
+    all_tasks_completed = False
+    has_tasks = False
+    if task_found:
+        task_content = task_file.read_text(encoding="utf-8")
+        task_valid = len(task_content.strip()) > 20
+        checkboxes = re.findall(r"-\s*\[([ xX/])\]", task_content)
+        if checkboxes:
+            has_tasks = True
+            open_tasks = [cb for cb in checkboxes if cb in [" ", "/"]]
+            if len(open_tasks) == 0:
+                all_tasks_completed = True
+
     report = {
-        "spec_found": "spec.md" in files,
-        "task_found": "task.md" in files,
+        "spec_found": spec_found,
+        "spec_valid": spec_valid,
+        "task_found": task_found,
+        "task_valid": task_valid,
+        "all_tasks_completed": all_tasks_completed,
         "phase": "",
         "directive": ""
     }
     
-    if not report["spec_found"]:
+    if not spec_found or not spec_valid:
         report["phase"] = "Phase 1: Discovery & Specification"
-        report["directive"] = (
-            "CRITICAL GUARDRAIL: STOP. No spec.md found. You are NOT allowed to write or modify codebase files yet. "
-            "1. Invoke 'list_skills()' to find the exact name of the grilling skill (likely 'grill-with-docs'). "
-            "2. Execute the grilling process (use the 'skill_grill_with_docs' tool) and document findings in CONTEXT.md. "
-            "3. Generate spec.md using the 'to-spec' blueprint before proceeding."
-        )
-    elif not report["task_found"]:
+        if not spec_found:
+            report["directive"] = (
+                "CRITICAL GUARDRAIL: STOP. No spec.md found. You are NOT allowed to write or modify codebase files yet.\n"
+                "1. Invoke 'list_skills()' to find the exact name of the grilling skill (likely 'grill-with-docs').\n"
+                "2. Execute the grilling process (use the 'skill_grill_with_docs' tool) and document findings in CONTEXT.md.\n"
+                "3. Generate spec.md using the 'to-spec' blueprint before proceeding."
+            )
+        else:
+            report["directive"] = (
+                "CRITICAL GUARDRAIL: STOP. The spec.md file is empty or too short. "
+                "You must write a comprehensive technical spec.md outlining requirements, database schemas, and architectural boundaries before coding."
+            )
+            
+    elif not task_found or not task_valid or not has_tasks:
         report["phase"] = "Phase 2: Task Breakdown"
+        if not task_found:
+            report["directive"] = (
+                "CRITICAL GUARDRAIL: STOP. spec.md exists, but task.md is missing. "
+                "You cannot code blindly. Break down the specifications into clear, isolated, "
+                "vertical tracer-bullet slices inside task.md first (use the breakdown skill, e.g. 'skill_to_issues' or 'skill_to_tickets')."
+            )
+        else:
+            report["directive"] = (
+                "CRITICAL GUARDRAIL: STOP. task.md exists but is empty, too short, or lacks checkboxes.\n"
+                "Please define your implementation checklist in task.md using the standard format:\n"
+                "- [ ] task name\n"
+                "Ensure every vertical slice is clearly represented."
+            )
+            
+    elif all_tasks_completed:
+        report["phase"] = "Phase 4: Cleanup & Review"
         report["directive"] = (
-            "CRITICAL GUARDRAIL: STOP. spec.md exists, but task.md is missing. "
-            "You cannot code blindly. Break down the specifications into clear, isolated, "
-            "vertical tracer-bullet slices inside task.md first (use the breakdown skill, e.g. 'skill_to_issues' or 'skill_to_tickets')."
+            "GO. All checklist items in task.md are completed!\n"
+            "Please perform post-flight checks:\n"
+            "1. Run standard codebase linter and unit tests to ensure everything builds and passes.\n"
+            "2. Run '/code-review' to perform a final quality and correctness review.\n"
+            "3. Update Graphify index (run 'graphify update .') to keep the codebase graph in sync.\n"
+            "4. Create/update 'walkthrough.md' to summarize changes before prompting the user for Git commit."
         )
+        
     else:
         report["phase"] = "Phase 3: Execution"
         report["directive"] = (
-            "GO. Project state verified. Read task.md and proceed with implementation using TDD (e.g. use 'skill_tdd')."
+            "GO. Project state verified. Read task.md and proceed with implementation using TDD (e.g. use 'skill_tdd').\n"
+            "Remember to mark tasks as in-progress ([/]) and completed ([x]) as you proceed."
         )
         
+    # Inject Graphify checks if we are in Phase 3 or Phase 4
+    if report["phase"] in ["Phase 3: Execution", "Phase 4: Cleanup & Review"]:
+        stale, warning_msg = is_graph_stale(root)
+        if stale:
+            report["directive"] += f"\n\n> [!WARNING]\n> {warning_msg}"
+            
     return json.dumps(report, indent=2)
 
 # --- Dynamic Skill Tool Registration ---

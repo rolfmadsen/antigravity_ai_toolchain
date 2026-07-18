@@ -12,6 +12,9 @@ NC='\033[0m' # No Color
 install_global() {
     echo -e "${BLUE}[*] Installing global tools...${NC}"
 
+    # Get absolute path of this script's directory
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+
     # Ensure base dependencies exist
     sudo apt update && sudo apt install -y nodejs npm
 
@@ -27,13 +30,12 @@ install_global() {
 
     # Install graphify and agentmemory
     npm install -g @agentmemory/agentmemory @agentmemory/mcp
-    uv tool install graphify
+    uv tool install graphifyy
 
     # Configure Antigravity MCP
     echo -e "${BLUE}[*] Configuring Antigravity MCP...${NC}"
     mkdir -p ~/.gemini/config
 
-    # We assume you have cloned the toolchain to ~/Github/antigravity_ai_toolchain
     cat <<EOF > ~/.gemini/config/mcp_config.json
 {
   "mcpServers": {
@@ -50,20 +52,16 @@ install_global() {
       ]
     },
     "agentmemory": {
-      "command": "npx",
+      "command": "python3",
       "args": [
-        "--no-install",
-        "@agentmemory/mcp"
-      ],
-      "env": {
-        "AGENTMEMORY_URL": "http://localhost:3111"
-      }
+        "$SCRIPT_DIR/start_agentmemory.py"
+      ]
     },
     "toolchain-guardrail": {
       "command": "uv",
       "args": [
         "run",
-        "$HOME/Github/antigravity_ai_toolchain/mcp_server.py"
+        "$SCRIPT_DIR/mcp_server.py"
       ]
     }
   }
