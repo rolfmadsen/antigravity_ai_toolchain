@@ -24,7 +24,7 @@ import json
 from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP(
-    "agent-skills",
+    "toolchain-guardrail",
     instructions=(
         "You are an expert AI orchestrator enforcing Matt Pocock's engineering methodology. "
         "You MUST run validate_state() before taking ANY action to determine the project phase. "
