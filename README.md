@@ -26,6 +26,20 @@ chmod +x setup-pocock-toolchain.sh
 ./setup-pocock-toolchain.sh global
 ```
 
+> [!WARNING]
+> **Node v24 / NPM v11 Known Bug:** 
+> NPM v11 (bundled with Node v24) contains an arborist semver bug (`TypeError: Invalid Version:`) that causes dependency installation crashes during global package installation or lazy-loaded MCP initialization.
+> 
+> If you run into `npm error Invalid Version` errors, please downgrade NPM to a stable v10 version or switch to Node v22 (LTS) via NVM:
+> ```bash
+> # Downgrade npm to stable v10
+> npm install -g npm@10
+> 
+> # Or switch default NVM Node to v22 (recommended)
+> nvm alias default v22
+> nvm use v22
+> ```
+
 ## 📁 3. Workspace Initialization (Per Project)
 
 When starting a new project or cloning an existing one, run the workspace setup command.

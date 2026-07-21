@@ -28,9 +28,23 @@ install_global() {
     # Ensure local bin is in PATH for the rest of this installation process
     export PATH="$HOME/.local/bin:$PATH"
 
+    # Check if npm version is v11 (known bug)
+    if command -v npm &> /dev/null; then
+        NPM_VERSION=$(npm -v)
+        if [[ "$NPM_VERSION" == 11.* ]]; then
+            echo -e "${RED}[!] Warning: You are using NPM version $NPM_VERSION.${NC}"
+            echo -e "${RED}[!] NPM v11 has a known bug ('Invalid Version') that crashes when installing agentmemory dependencies.${NC}"
+            echo -e "${BLUE}[*] Switch default NVM node to v22 (LTS) or downgrade npm to stable v10 to proceed safely:${NC}"
+            echo -e "${BLUE}    nvm alias default v22 && nvm use v22${NC}"
+            echo -e "${BLUE}    OR: npm install -g npm@10${NC}"
+            echo -e "${BLUE}[*] Press Enter to continue anyway, or Ctrl+C to abort...${NC}"
+            read -r
+        fi
+    fi
+
     # Install graphify and agentmemory
     npm install -g @agentmemory/agentmemory @agentmemory/mcp
-    uv tool install graphifyy
+    uv tool install graphify
 
     # Configure Antigravity MCP
     echo -e "${BLUE}[*] Configuring Antigravity MCP...${NC}"

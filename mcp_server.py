@@ -67,21 +67,25 @@ def parse_skill_md(file_path: Path):
 def bootstrap_workspace(cwd: Path):
     """Creates persistent domain documentation structures and guardrail rules if missing."""
     context_file = cwd / "CONTEXT.md"
-    adrs_dir = cwd / "docs" / "adrs"
+    context_map_file = cwd / "CONTEXT-MAP.md"
+    adr_dir = cwd / "docs" / "adr"
     agents_dir = cwd / ".agents"
     agents_rule_file = agents_dir / "AGENTS.md"
 
-    if not context_file.exists():
+    # Only create a default CONTEXT.md if neither CONTEXT.md nor CONTEXT-MAP.md exists (Matt's multi-context monorepo layout support)
+    if not context_file.exists() and not context_map_file.exists():
         context_file.write_text(
             "# CONTEXT.md\n\n"
-            "This file contains the **Ubiquitous Language** and domain model. "
-            "Never delete it. Update it during `/grill-with-docs` sessions.\n\n"
-            "## Glossary\n",
+            "Dette dokument indeholder projektets **Ubikvitære Sprog** (ordbog).\n"
+            "Alle begreber skal defineres efter Aristoteles' metode (*definitio per genus et differentiam*).\n\n"
+            "Formel: **Begreb**: En [overordnet kategori] (genus), der [specifik egenskab der adskiller den] (differentia).\n\n"
+            "## Language\n\n"
+            "### Glossary\n",
             encoding="utf-8"
         )
     
-    if not adrs_dir.exists():
-        adrs_dir.mkdir(parents=True, exist_ok=True)
+    if not adr_dir.exists():
+        adr_dir.mkdir(parents=True, exist_ok=True)
 
     # Ensure .agents folder exists
     if not agents_dir.exists():
@@ -89,15 +93,38 @@ def bootstrap_workspace(cwd: Path):
 
     # Write the process-guardrail rules to AGENTS.md so the IDE's custom rules system enforces it.
     guardrail_rules = (
-        "# Antigravity Guardrail Rules\n\n"
+        "# Antigravity Toolchain Guardrail Rules\n\n"
         "> [!IMPORTANT]\n"
         "> Du er underlagt en streng proces-guardrail (toolchain-guardrail).\n"
         "> \n"
-        "> 1. Før du foretager NOGEN form for kildekodeændringer eller opretter nye filer (undtagen dokumentationsfiler som `CONTEXT.md`, `spec.md` og `task.md`), SKAL du kalde `validate_state()` værktøjet.\n"
+        "> 1. Før du foretager NOGEN form for kildekodeændringer eller opretter nye filer (undtagen dokumentationsfiler som `CONTEXT.md`, `spec.md` og `task.md`), SKAL du kalde `validate_state(intent=...)` værktøjet med den relevante intent (`query`, `bugfix`, `feature`, `enhancement`).\n"
         "> 2. Hvis `validate_state()` returnerer et `STOP` direktiv (f.eks. fordi `spec.md` eller `task.md` mangler), er det strengt forbudt at skrive eller modificere kildekodefiler. Du skal stoppe og følge direktivets instruktioner (f.eks. køre en grill-session eller nedbryde opgaver).\n"
-        "> 3. Du skal respektere og følge de foreskrevne faser nøje.\n"
+        "> 3. Du skal respektere og følge de foreskrevne faser nøje.\n\n"
+        "## 🧠 Git-Versioned Agent Memory [MCP: agentmemory]\n"
+        "- **Recall Context:** Søg i projektets hukommelse i `./.memory/` ved hjælp af `memory_smart_search` eller `memory_recall` ved opstart af komplekse opgaver.\n"
+        "- **Persist Learnings:** Gem arkitektoniske beslutninger, komplekse fejlrettelser og projektkonventioner i `./.memory/` ved hjælp af `memory_save`, så de versionsstyres sammen med Git.\n\n"
+        "## 📖 Regler for Ordbogsdefinitioner (CONTEXT.md)\n"
+        "Når du opretter eller opdaterer begreber i `CONTEXT.md`, skal du overholde følgende regler:\n"
+        "1. **Aristoteles' Definitio per genus et differentiam**: Hvert begreb defineres efter formlen:\n"
+        "   - **\"En [X] er en [Y], der [Z]\"** (hvor Y er den generelle kategori, og Z er den adskillelige egenskab).\n"
+        "   - *Eksempel*: \"**Faktura**: En betalingsanmodning (genus), der sendes til en kunde efter levering (differentia).\"\n"
+        "2. **Ren Semantik**: Definitionerne skal beskrive hvad begrebet *er*, ikke hvordan it implementeres eller fungerer i koden.\n\n"
+        "## 🛠️ Execution Strategy & User Overrides (TDD Rules)\n"
+        "1. **Smart Defaults:**\n"
+        "   - **Core Business Logic / APIs / State Management:** Brug TDD (skriv/opdatér en fejlende test i `*.test.ts` / `*.test.tsx` først).\n"
+        "   - **UI Layouts / CSS / Config / Docs / Scripts:** Direkte implementering uden TDD.\n"
+        "2. **User Overrides:**\n"
+        "   - Hvis brugeren benytter nøgleord som **\"quick fix\"**, **\"skip tests\"** eller **\"spike\"**, overspringes TDD, og kildekoden redigeres direkte.\n"
+        "   - Hvis brugeren benytter nøgleord som **\"test first\"** eller **\"TDD\"**, håndhæves streng Red-Green-Refactor for den specifikke opgave.\n\n"
+        "## 🧩 Modular Rules & Extensions\n"
+        "- **[Graphify AST Knowledge Graph](file://.agents/rules/graphify.md):** Regler for AST-indeksering, undergraf-forespørgsler og automatisk `graphify update .` efter kildekodeændringer.\n"
     )
-    agents_rule_file.write_text(guardrail_rules, encoding="utf-8")
+    if agents_rule_file.exists():
+        existing_content = agents_rule_file.read_text(encoding="utf-8")
+        if "# Antigravity Toolchain Guardrail Rules" not in existing_content and "# Antigravity Guardrail Rules" not in existing_content:
+            agents_rule_file.write_text(guardrail_rules + "\n\n" + existing_content, encoding="utf-8")
+    else:
+        agents_rule_file.write_text(guardrail_rules, encoding="utf-8")
 
 @mcp.tool()
 def list_skills() -> str:
@@ -168,18 +195,33 @@ def is_graph_stale(root: Path) -> tuple[bool, str]:
     return False, ""
 
 @mcp.tool()
-def validate_state(cwd: str = ".") -> str:
+def validate_state(cwd: str = ".", intent: str = "auto") -> str:
     """
-    Evaluates the project state and commands the AI on what phase to execute.
-    Fallback to current working directory if generic path provided.
+    Evaluates the project state based on user prompt intent (query, bugfix, feature, enhancement, auto)
+    and commands the AI on what phase to execute.
     """
     # Robust absolute path handling
     start = Path(cwd).resolve() if cwd and cwd != "." else Path.cwd().resolve()
     root = find_workspace_root(start)
     bootstrap_workspace(root)
     
+    intent_clean = (intent or "auto").lower().strip()
+    
+    # 1. READ-ONLY QUERY INTENT
+    if intent_clean in ["query", "question", "discovery", "read_only", "readonly"]:
+        return json.dumps({
+            "phase": "Read-Only Query",
+            "intent": intent_clean,
+            "directive": (
+                "GO. Read-only query detected. You are permitted to read files, run graphify queries, "
+                "or explain concepts without requiring spec.md or task.md."
+            )
+        }, indent=2)
+
     spec_file = root / "spec.md"
     task_file = root / "task.md"
+    impl_plan_file = root / "implementation_plan.md"
+    has_impl_plan = impl_plan_file.exists() and len(impl_plan_file.read_text(encoding="utf-8").strip()) > 50
     
     spec_found = spec_file.exists()
     spec_valid = False
@@ -201,11 +243,34 @@ def validate_state(cwd: str = ".") -> str:
             if len(open_tasks) == 0:
                 all_tasks_completed = True
 
+    # 2. BUGFIX INTENT (Lightweight process: diagnosis + reproduction test + TDD)
+    if intent_clean in ["bugfix", "fix", "bug", "repair"]:
+        if not task_found:
+            return json.dumps({
+                "phase": "Bugfix Setup",
+                "intent": intent_clean,
+                "directive": (
+                    "BUGFIX MODE: Create a simple 'task.md' with a single checklist item for reproducing and fixing the bug.\n"
+                    "Then proceed immediately with 'skill_diagnose' and 'skill_tdd' to write a failing test and fix it."
+                )
+            }, indent=2)
+        else:
+            return json.dumps({
+                "phase": "Bugfix Execution",
+                "intent": intent_clean,
+                "directive": (
+                    "GO. Bugfix mode active. Proceed using 'skill_diagnose' to reproduce/instrument, "
+                    "then apply fix with TDD using 'skill_tdd'."
+                )
+            }, indent=2)
+
     report = {
+        "intent": intent_clean,
         "spec_found": spec_found,
         "spec_valid": spec_valid,
         "task_found": task_found,
         "task_valid": task_valid,
+        "impl_plan_found": has_impl_plan,
         "all_tasks_completed": all_tasks_completed,
         "phase": "",
         "directive": ""
@@ -214,11 +279,12 @@ def validate_state(cwd: str = ".") -> str:
     if not spec_found or not spec_valid:
         report["phase"] = "Phase 1: Discovery & Specification"
         if not spec_found:
+            extra_hint = "\n(Note: implementation_plan.md was found. Extract its specification requirements into spec.md and task breakdown into task.md)." if has_impl_plan else ""
             report["directive"] = (
-                "CRITICAL GUARDRAIL: STOP. No spec.md found. You are NOT allowed to write or modify codebase files yet.\n"
+                f"CRITICAL GUARDRAIL: STOP. No spec.md found. You are NOT allowed to write or modify codebase files yet.{extra_hint}\n"
                 "1. Invoke 'list_skills()' to find the exact name of the grilling skill (likely 'grill-with-docs').\n"
                 "2. Execute the grilling process (use the 'skill_grill_with_docs' tool) and document findings in CONTEXT.md.\n"
-                "3. Generate spec.md using the 'to-spec' blueprint before proceeding."
+                "3. Write/generate spec.md outlining requirements, schemas, and architectural boundaries before proceeding."
             )
         else:
             report["directive"] = (
@@ -229,8 +295,9 @@ def validate_state(cwd: str = ".") -> str:
     elif not task_found or not task_valid or not has_tasks:
         report["phase"] = "Phase 2: Task Breakdown"
         if not task_found:
+            extra_hint = "\n(Note: implementation_plan.md was found. Extract the task checklist into task.md with checkboxes)." if has_impl_plan else ""
             report["directive"] = (
-                "CRITICAL GUARDRAIL: STOP. spec.md exists, but task.md is missing. "
+                f"CRITICAL GUARDRAIL: STOP. spec.md exists, but task.md is missing.{extra_hint} "
                 "You cannot code blindly. Break down the specifications into clear, isolated, "
                 "vertical tracer-bullet slices inside task.md first (use the breakdown skill, e.g. 'skill_to_issues' or 'skill_to_tickets')."
             )

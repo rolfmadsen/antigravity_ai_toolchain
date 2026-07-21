@@ -20,7 +20,49 @@ def is_port_in_use(port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         return s.connect_ex(('127.0.0.1', port)) == 0
 
+def setup_stable_node_env():
+    """If the current node/npm version is known to have bugs (e.g. >= v24),
+    try to locate a stable Node LTS version (v22 or v20) in the user's NVM directory
+    and prepend its bin directory to PATH."""
+    nvm_dir = Path("/home/rolfmadsen") / ".nvm" / "versions" / "node"
+    if not nvm_dir.exists():
+        return
+
+    # Find all installed node versions in NVM
+    versions = []
+    for p in nvm_dir.iterdir():
+        if p.is_dir() and p.name.startswith("v"):
+            try:
+                parts = tuple(int(x) for x in p.name[1:].split("."))
+                versions.append((parts, p))
+            except ValueError:
+                continue
+
+    if not versions:
+        return
+
+    # Sort versions descending (highest version first)
+    versions.sort(key=lambda x: x[0], reverse=True)
+
+    # We want to find the highest version that is NOT v24+
+    stable_bin_path = None
+    for parts, path in versions:
+        if parts[0] < 24:
+            bin_path = path / "bin"
+            if (bin_path / "node").exists() and (bin_path / "npx").exists():
+                stable_bin_path = bin_path
+                break
+
+    if stable_bin_path:
+        current_path = os.environ.get("PATH", "")
+        os.environ["PATH"] = f"{stable_bin_path}:{current_path}"
+        os.environ["NVM_BIN"] = str(stable_bin_path)
+        os.environ["NVM_PATH"] = str(stable_bin_path.parent / "lib" / "node_modules")
+
 def main():
+    # Setup stable node environment using NVM if needed
+    setup_stable_node_env()
+
     # 1. Determine active workspace root
     cwd = Path.cwd()
     workspace_root = find_workspace_root(cwd)
@@ -37,7 +79,7 @@ def main():
         memory_dir.mkdir(exist_ok=True)
     except Exception:
         # Fallback to home directory if workspace root is read-only or root '/'
-        memory_dir = Path.home() / ".memory"
+        memory_dir = Path("/home/rolfmadsen") / ".memory"
         memory_dir.mkdir(exist_ok=True)
     
     # 4. Check if the local agentmemory daemon is already running on this port
